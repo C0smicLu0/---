@@ -33,5 +33,8 @@ jobs:
       - name: Measure runtime
         run: |
           # 使用 PowerShell 的 Measure-Command 计算程序的运行时间
-          $time = Measure-Command { .\opt.exe }
-          Write-Host "Execution Time: $($time.TotalSeconds) seconds"  # 输出运行时间
+          $time = Measure-Command { 
+            $output = .\opt.exe
+            Write-Host $output  # 输出 C++ 程序的标准输出
+          }
+          Write-Host "Execution Time: $($time.TotalSeconds) seconds"
