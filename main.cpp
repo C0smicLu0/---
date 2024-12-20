@@ -8,8 +8,8 @@ using std::vector;
 
 class FigureProcessor {
 private:
-  vector<vector<unsigned char>> figure;
-  vector<vector<unsigned char>> result;
+  unsigned char* figure;
+  unsigned char* result;
   const size_t size;
 
 public:
@@ -25,22 +25,27 @@ public:
     // !!! ----------------------------------------- !!!
 
     // 两个数组的初始化在这里，可以改动，但请注意 gen 的顺序是从上到下从左到右即可。
+
+    figure=(unsigned char*)malloc(size * size * sizeof(unsigned char));
+    result=(unsigned char*)malloc(size * size * sizeof(unsigned char));
+
     for (size_t i = 0; i < size; ++i) {
-      figure.push_back(vector<unsigned char>());
       for (size_t j = 0; j < size; ++j) {
-        figure[i].push_back(static_cast<unsigned char>(distribution(gen)));
+        figure[i * size + j]=static_cast<unsigned char>(distribution(gen));
       }
     }
 
     for (size_t i = 0; i < size; ++i) {
-      result.push_back(vector<unsigned char>());
       for (size_t j = 0; j < size; ++j) {
-        result[i].push_back(0);
+        result[i * size + j]=0;
       }
     }
   }
 
-  ~FigureProcessor() = default;
+  ~FigureProcessor() {
+    free(figure);
+    free(result);
+  }
 
   // Gaussian filter
   // [[1, 2, 1], [2, 4, 2], [1, 2, 1]] / 16
@@ -50,67 +55,67 @@ public:
     // 处理内部区域
     for (size_t i = 1; i < size - 1; ++i) {
       for (size_t j = 1; j < size - 1; ++j) {
-        result[i][j] =
-            (figure[i - 1][j - 1] + 2 * figure[i - 1][j] +
-             figure[i - 1][j + 1] + 2 * figure[i][j - 1] + 4 * figure[i][j] +
-             2 * figure[i][j + 1] + figure[i + 1][j - 1] +
-             2 * figure[i + 1][j] + figure[i + 1][j + 1]) /
+        result[i * size + j] =
+            (figure[(i - 1) * size + j - 1] + 2 * figure[(i - 1)* size + j] +
+             figure[(i - 1) * size + j + 1] + 2 * figure[i * size + j - 1] + 4 * figure[i * size + j] +
+             2 * figure[i * size + j + 1] + figure[(i + 1) * size + j - 1] +
+             2 * figure[(i + 1) * size + j] + figure[(i + 1) * size + j + 1]) /
             16;
       }
     }
 
     for (size_t i = 1; i < size - 1; ++i) {
-      result[i][0] =
-          (figure[i - 1][0] + 2 * figure[i - 1][0] + figure[i - 1][1] +
-           2 * figure[i][0] + 4 * figure[i][0] + 2 * figure[i][1] +
-           figure[i + 1][0] + 2 * figure[i + 1][0] + figure[i + 1][1]) /
+      result[i * size] =
+          (figure[(i - 1) * size] + 2 * figure[(i - 1) * size] + figure[(i - 1) * size + 1] +
+           2 * figure[i * size] + 4 * figure[i * size] + 2 * figure[i * size + 1] +
+           figure[(i + 1) * size] + 2 * figure[(i + 1) * size] + figure[(i + 1) * size + 1]) /
           16;
 
-      result[i][size - 1] =
-          (figure[i - 1][size - 2] + 2 * figure[i - 1][size - 1] +
-           figure[i - 1][size - 1] + 2 * figure[i][size - 2] +
-           4 * figure[i][size - 1] + 2 * figure[i][size - 1] +
-           figure[i + 1][size - 2] + 2 * figure[i + 1][size - 1] +
-           figure[i + 1][size - 1]) /
+      result[i * size + size - 1] =
+          (figure[(i - 1) * size + size - 2] + 2 * figure[(i - 1) * size + size - 1] +
+           figure[(i - 1) * size + size - 1] + 2 * figure[i * size + size - 2] +
+           4 * figure[i * size + size - 1] + 2 * figure[i * size + size - 1] +
+           figure[(i + 1) * size + size - 2] + 2 * figure[(i + 1) * size + size - 1] +
+           figure[(i + 1) * size + size - 1]) /
           16;
     }
 
     for (size_t j = 1; j < size - 1; ++j) {
-      result[0][j] =
-          (figure[0][j - 1] + 2 * figure[0][j] + figure[0][j + 1] +
-           2 * figure[0][j - 1] + 4 * figure[0][j] + 2 * figure[0][j + 1] +
-           figure[1][j - 1] + 2 * figure[1][j] + figure[1][j + 1]) /
+      result[j] =
+          (figure[j - 1] + 2 * figure[j] + figure[j + 1] +
+           2 * figure[j - 1] + 4 * figure[j] + 2 * figure[j + 1] +
+           figure[size + j - 1] + 2 * figure[size + j] + figure[size + j + 1]) /
           16;
 
-      result[size - 1][j] =
-          (figure[size - 2][j - 1] + 2 * figure[size - 2][j] +
-           figure[size - 2][j + 1] + 2 * figure[size - 1][j - 1] +
-           4 * figure[size - 1][j] + 2 * figure[size - 1][j + 1] +
-           figure[size - 1][j - 1] + 2 * figure[size - 1][j] +
-           figure[size - 1][j + 1]) /
+      result[(size - 1) * size + j] =
+          (figure[(size - 2) * size + j - 1] + 2 * figure[(size - 2) * size + j] +
+           figure[(size - 2) * size + j + 1] + 2 * figure[(size - 1) * size + j - 1] +
+           4 * figure[(size - 1) * size + j] + 2 * figure[(size - 1) * size + j + 1] +
+           figure[(size - 1) * size + j - 1] + 2 * figure[(size - 1) * size + j] +
+           figure[(size - 1) * size + j + 1]) /
           16;
     }
 
     // 处理四个角点
     // 左上角
-    result[0][0] = (4 * figure[0][0] + 2 * figure[0][1] + 2 * figure[1][0] +
-                    figure[1][1]) /
+    result[0] = (4 * figure[0] + 2 * figure[1] + 2 * figure[size] +
+                    figure[size + 1]) /
                    9; 
 
     // 右上角
-    result[0][size - 1] = (4 * figure[0][size - 1] + 2 * figure[0][size - 2] +
-                           2 * figure[1][size - 1] + figure[1][size - 2]) /
+    result[size - 1] = (4 * figure[size - 1] + 2 * figure[size - 2] +
+                           2 * figure[2 * size - 1] + figure[2 * size - 2]) /
                           9;
 
     // 左下角
-    result[size - 1][0] = (4 * figure[size - 1][0] + 2 * figure[size - 1][1] +
-                           2 * figure[size - 2][0] + figure[size - 2][1]) /
+    result[(size - 1) * size] = (4 * figure[(size - 1) * size] + 2 * figure[(size - 1) * size + 1] +
+                           2 * figure[(size - 2) * size] + figure[(size - 2) * size + 1]) /
                           9;
 
     // 右下角
-    result[size - 1][size - 1] =
-        (4 * figure[size - 1][size - 1] + 2 * figure[size - 1][size - 2] +
-         2 * figure[size - 2][size - 1] + figure[size - 2][size - 2]) /
+    result[size * size - 1] =
+        (4 * figure[size * size - 1] + 2 * figure[size * size - 2] +
+         2 * figure[(size - 2) * size + size - 1] + figure[(size - 2) * size + size - 2]) /
         9;
   }
 
@@ -122,12 +127,12 @@ public:
     
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        if(figure[i][j] == 0) {
-          result[i][j] = 0;
+        if(figure[i * size + j] == 0) {
+          result[i * size + j] = 0;
           continue;
         }
-        float normalized = (figure[i][j]) / 255.0f;
-        result[i][j] = static_cast<unsigned char>(
+        float normalized = (figure[i * size + j]) / 255.0f;
+        result[i * size + j] = static_cast<unsigned char>(
             255.0f * std::pow(normalized, gamma) + 0.5f); 
       }
     }
@@ -139,7 +144,7 @@ public:
     constexpr size_t mod = 1000000007;
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        sum += result[i][j];
+        sum += result[i * size + j];
         sum %= mod;
       }
     }
