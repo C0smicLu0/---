@@ -10,6 +10,7 @@ class FigureProcessor {
 private:
   unsigned char* figure;
   unsigned char* result;
+  float LUT[256];
   const size_t size;
 
 public:
@@ -39,6 +40,13 @@ public:
       for (size_t j = 0; j < size; ++j) {
         result[i * size + j]=0;
       }
+    }
+
+    LUT[0] = 0;
+    for (size_t i = 1; i < 256; ++i) {
+      float normalized = i / 255.0f;
+      LUT[i] = static_cast<unsigned char>(
+          255.0f * std::pow(normalized, 0.5f) + 0.5f); 
     }
   }
 
@@ -127,13 +135,7 @@ public:
     
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        if(figure[i * size + j] == 0) {
-          result[i * size + j] = 0;
-          continue;
-        }
-        float normalized = (figure[i * size + j]) / 255.0f;
-        result[i * size + j] = static_cast<unsigned char>(
-            255.0f * std::pow(normalized, gamma) + 0.5f); 
+        result[i * size + j] = LUT[figure[i * size + j]];
       }
     }
   }
