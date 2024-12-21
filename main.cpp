@@ -3,6 +3,7 @@
 #include <iostream>
 #include <random>
 #include <immintrin.h>
+#include <omp.h>
 
 class FigureProcessor {
 private:
@@ -25,6 +26,8 @@ public:
     // !!! ----------------------------------------- !!!
 
     // 两个数组的初始化在这里，可以改动，但请注意 gen 的顺序是从上到下从左到右即可。
+
+    omp_set_num_threads(4);  // 设置使用 4 个线程
 
     // 对齐到32字节
     figure=(uint16_t*)_aligned_malloc(outsize * outsize * sizeof(uint16_t), 32);
@@ -77,6 +80,7 @@ public:
   void gaussianFilter() {
     // 每个像素占16位，因此AVX_SIZE=256/16=16
     size_t AVX_SIZE = 16;
+    #pragma omp parallel for collapse(2)
     for (size_t i = 1; i< size + 1; ++i) {
       for (size_t j = 1; j < size + 1; j += AVX_SIZE) {
         // 载入数据
@@ -138,6 +142,7 @@ public:
   // FIXME: Feel free to optimize this function
   // Hint: LUT to optimize this function?
   void powerLawTransformation() {
+    #pragma omp parallel for collapse(2)
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
         result[(i << 14) + j] = LUT[figure[(i + 1) * outsize + j + 1]];
