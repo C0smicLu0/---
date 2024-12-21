@@ -113,7 +113,7 @@ public:
         sum = _mm256_srli_epi16(sum, 4);
 
         // 将结果存回 `result` 数组
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1]), sum);
+        _mm256_store_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1]), sum);
       }
     }
     // 处理四个角点
