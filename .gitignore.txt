@@ -1,3 +1,5 @@
 *.txt
 
 [作业B]before_optimize.cpp
+
+opt.exe
