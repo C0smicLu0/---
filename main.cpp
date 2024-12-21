@@ -82,7 +82,7 @@ public:
     size_t AVX_SIZE = 16;
     #pragma omp parallel for collapse(2)
     for (size_t i = 1; i< size + 1; ++i) {
-      for (size_t j = 1; j < size + 1; j += AVX_SIZE) {
+      for (size_t j = 1; j < size + 1; j += (AVX_SIZE << 2)) {
         // 载入数据
         __m256i figure_top_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j - 1]));
         __m256i figure_top_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j]));
@@ -114,6 +114,102 @@ public:
 
         // 将结果存回 `result` 数组
         _mm256_store_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1]), sum);
+
+        // 循环展开2
+        figure_top_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j - 1 + AVX_SIZE]));
+        figure_top_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + AVX_SIZE]));
+        figure_top_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + 1 + AVX_SIZE]));
+
+        figure_mid_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j - 1 + AVX_SIZE]));
+        figure_mid_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + AVX_SIZE]));
+        figure_mid_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + 1 + AVX_SIZE]));
+
+        figure_bottom_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j - 1 + AVX_SIZE]));
+        figure_bottom_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + AVX_SIZE]));
+        figure_bottom_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + 1 + AVX_SIZE]));
+
+        // 将系数与数据相乘，进行加权求和
+        sum = figure_top_left;
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_top_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_top_right);
+
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_left, 1));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_mid, 2));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_right, 1));
+
+        sum = _mm256_add_epi16(sum, figure_bottom_left);
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_bottom_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_bottom_right);
+
+        // 除以 16，即右移4位
+        sum = _mm256_srli_epi16(sum, 4);
+
+        // 将结果存回 `result` 数组
+        _mm256_store_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1 + AVX_SIZE]), sum);
+
+        // 循环展开3
+        figure_top_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j - 1 + (AVX_SIZE << 1)]));
+        figure_top_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + (AVX_SIZE << 1)]));
+        figure_top_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + 1 + (AVX_SIZE << 1)]));
+
+        figure_mid_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j - 1 + (AVX_SIZE << 1)]));
+        figure_mid_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + (AVX_SIZE << 1)]));
+        figure_mid_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + 1 + (AVX_SIZE << 1)]));
+
+        figure_bottom_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j - 1 + (AVX_SIZE << 1)]));
+        figure_bottom_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + (AVX_SIZE << 1)]));
+        figure_bottom_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + 1 + (AVX_SIZE << 1)]));
+
+        // 将系数与数据相乘，进行加权求和
+        sum = figure_top_left;
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_top_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_top_right);
+
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_left, 1));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_mid, 2));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_right, 1));
+
+        sum = _mm256_add_epi16(sum, figure_bottom_left);
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_bottom_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_bottom_right);
+
+        // 除以 16，即右移4位
+        sum = _mm256_srli_epi16(sum, 4);
+
+        // 将结果存回 `result` 数组
+        _mm256_store_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1 + (AVX_SIZE << 1)]), sum);
+
+        // 循环展开4
+        figure_top_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j - 1 + (AVX_SIZE * 3)]));
+        figure_top_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + (AVX_SIZE * 3)]));
+        figure_top_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + 1 + (AVX_SIZE * 3)]));
+
+        figure_mid_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j - 1 + (AVX_SIZE * 3)]));
+        figure_mid_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + (AVX_SIZE * 3)]));
+        figure_mid_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + 1 + (AVX_SIZE * 3)]));
+
+        figure_bottom_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j - 1 + (AVX_SIZE * 3)]));
+        figure_bottom_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + (AVX_SIZE * 3)]));
+        figure_bottom_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + 1 + (AVX_SIZE * 3)]));
+
+        // 将系数与数据相乘，进行加权求和
+        sum = figure_top_left;
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_top_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_top_right);
+
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_left, 1));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_mid, 2));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_right, 1));
+
+        sum = _mm256_add_epi16(sum, figure_bottom_left);
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_bottom_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_bottom_right);
+
+        // 除以 16，即右移4位
+        sum = _mm256_srli_epi16(sum, 4);
+
+        // 将结果存回 `result` 数组
+        _mm256_store_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1 + (AVX_SIZE * 3)]), sum);
       }
     }
     // 处理四个角点
@@ -144,8 +240,23 @@ public:
   void powerLawTransformation() {
     #pragma omp parallel for collapse(2)
     for (size_t i = 0; i < size; ++i) {
-      for (size_t j = 0; j < size; ++j) {
+      for (size_t j = 0; j < size; j += 16) {
         result[(i << 14) + j] = LUT[figure[(i + 1) * outsize + j + 1]];
+        result[(i << 14) + j + 1] = LUT[figure[(i + 1) * outsize + j + 2]];
+        result[(i << 14) + j + 2] = LUT[figure[(i + 1) * outsize + j + 3]];
+        result[(i << 14) + j + 3] = LUT[figure[(i + 1) * outsize + j + 4]];
+        result[(i << 14) + j + 4] = LUT[figure[(i + 1) * outsize + j + 5]];
+        result[(i << 14) + j + 5] = LUT[figure[(i + 1) * outsize + j + 6]];
+        result[(i << 14) + j + 6] = LUT[figure[(i + 1) * outsize + j + 7]];
+        result[(i << 14) + j + 7] = LUT[figure[(i + 1) * outsize + j + 8]];
+        result[(i << 14) + j + 8] = LUT[figure[(i + 1) * outsize + j + 9]];
+        result[(i << 14) + j + 9] = LUT[figure[(i + 1) * outsize + j + 10]];
+        result[(i << 14) + j + 10] = LUT[figure[(i + 1) * outsize + j + 11]];
+        result[(i << 14) + j + 11] = LUT[figure[(i + 1) * outsize + j + 12]];
+        result[(i << 14) + j + 12] = LUT[figure[(i + 1) * outsize + j + 13]];
+        result[(i << 14) + j + 13] = LUT[figure[(i + 1) * outsize + j + 14]];
+        result[(i << 14) + j + 14] = LUT[figure[(i + 1) * outsize + j + 15]];
+        result[(i << 14) + j + 15] = LUT[figure[(i + 1) * outsize + j + 16]];
       }
     }
   }
