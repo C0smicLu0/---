@@ -2,19 +2,18 @@
 #include <cstddef>
 #include <iostream>
 #include <random>
-#include <vector>
-
-using std::vector;
+#include <immintrin.h>
 
 class FigureProcessor {
 private:
-  unsigned char* figure;
-  unsigned char* result;
+  uint16_t* figure;
+  uint16_t* result;
   float LUT[256];
   const size_t size;
+  const size_t outsize;
 
 public:
-  FigureProcessor(size_t size, size_t seed = 0) : size(size) {
+  FigureProcessor(size_t size, size_t seed = 0) : size(size), outsize(size+2){
     
     // !!! Please do not modify the following code !!!
     // 如果你需要修改内存的数据结构，请不要修改初始化的顺序和逻辑
@@ -27,18 +26,34 @@ public:
 
     // 两个数组的初始化在这里，可以改动，但请注意 gen 的顺序是从上到下从左到右即可。
 
-    figure=(unsigned char*)malloc(size * size * sizeof(unsigned char));
-    result=(unsigned char*)malloc(size * size * sizeof(unsigned char));
+    // 对齐到32字节
+    figure=(uint16_t*)_aligned_malloc(outsize * outsize * sizeof(uint16_t), 32);
+    result=(uint16_t*)_aligned_malloc(size * size * sizeof(uint16_t), 32);
 
-    for (size_t i = 0; i < size; ++i) {
-      for (size_t j = 0; j < size; ++j) {
-        figure[i * size + j]=static_cast<unsigned char>(distribution(gen));
+    //内部赋值
+    for (size_t i = 1; i < size + 1; ++i) {
+      for (size_t j = 1; j < size + 1; ++j) {
+        figure[i * outsize + j]=static_cast<unsigned char>(distribution(gen));
       }
+    }
+
+    //补边，周围补一圈与最近点相同的点
+    for (size_t i = 0; i < outsize; ++i) {
+      figure[i * outsize] = figure[i * outsize + 1];
+    }
+    for (size_t i = 0; i < outsize; ++i) {
+      figure[i * outsize + outsize - 1] = figure[i * outsize + outsize - 2];
+    }
+    for (size_t j = 0; j < outsize; ++j) {
+      figure[j] = figure[outsize + j];
+    }
+    for (size_t j = 0; j < outsize; ++j) {
+      figure[(outsize - 1) * outsize + j] = figure[(outsize - 2) * outsize + j];
     }
 
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        result[i * size + j]=0;
+        result[i * size + j] = 0;
       }
     }
 
@@ -51,8 +66,8 @@ public:
   }
 
   ~FigureProcessor() {
-    free(figure);
-    free(result);
+    _aligned_free(figure);
+    _aligned_free(result);
   }
 
   // Gaussian filter
@@ -60,82 +75,72 @@ public:
   //FIXME: Feel free to optimize this function
   //Hint: You can use SIMD instructions to optimize this function
   void gaussianFilter() {
-    // 处理内部区域
-    for (size_t i = 1; i < size - 1; ++i) {
-      for (size_t j = 1; j < size - 1; ++j) {
-        result[i * size + j] =
-            (figure[(i - 1) * size + j - 1] + 2 * figure[(i - 1)* size + j] +
-             figure[(i - 1) * size + j + 1] + 2 * figure[i * size + j - 1] + 4 * figure[i * size + j] +
-             2 * figure[i * size + j + 1] + figure[(i + 1) * size + j - 1] +
-             2 * figure[(i + 1) * size + j] + figure[(i + 1) * size + j + 1]) /
-            16;
+    // 每个像素占16位，因此AVX_SIZE=256/16=16
+    size_t AVX_SIZE = 16;
+    for (size_t i = 1; i< size + 1; ++i) {
+      for (size_t j = 1; j < size + 1; j += AVX_SIZE) {
+        // 载入数据
+        __m256i figure_top_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j - 1]));
+        __m256i figure_top_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j]));
+        __m256i figure_top_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i - 1) * outsize + j + 1]));
+
+        __m256i figure_mid_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j - 1]));
+        __m256i figure_mid_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j]));
+        __m256i figure_mid_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[i * outsize + j + 1]));
+
+        __m256i figure_bottom_left = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j - 1]));
+        __m256i figure_bottom_mid = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j]));
+        __m256i figure_bottom_right = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&figure[(i + 1) * outsize + j + 1]));
+
+        // 将系数与数据相乘，进行加权求和
+        __m256i sum = figure_top_left;
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_top_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_top_right);
+
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_left, 1));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_mid, 2));
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_mid_right, 1));
+
+        sum = _mm256_add_epi16(sum, figure_bottom_left);
+        sum = _mm256_add_epi16(sum, _mm256_slli_epi16(figure_bottom_mid, 1));
+        sum = _mm256_add_epi16(sum, figure_bottom_right);
+
+        // 除以 16，即右移4位
+        sum = _mm256_srli_epi16(sum, 4);
+
+        // 将结果存回 `result` 数组
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&result[(i - 1) * size + j - 1]), sum);
       }
     }
-
-    for (size_t i = 1; i < size - 1; ++i) {
-      result[i * size] =
-          (figure[(i - 1) * size] + 2 * figure[(i - 1) * size] + figure[(i - 1) * size + 1] +
-           2 * figure[i * size] + 4 * figure[i * size] + 2 * figure[i * size + 1] +
-           figure[(i + 1) * size] + 2 * figure[(i + 1) * size] + figure[(i + 1) * size + 1]) /
-          16;
-
-      result[i * size + size - 1] =
-          (figure[(i - 1) * size + size - 2] + 2 * figure[(i - 1) * size + size - 1] +
-           figure[(i - 1) * size + size - 1] + 2 * figure[i * size + size - 2] +
-           4 * figure[i * size + size - 1] + 2 * figure[i * size + size - 1] +
-           figure[(i + 1) * size + size - 2] + 2 * figure[(i + 1) * size + size - 1] +
-           figure[(i + 1) * size + size - 1]) /
-          16;
-    }
-
-    for (size_t j = 1; j < size - 1; ++j) {
-      result[j] =
-          (figure[j - 1] + 2 * figure[j] + figure[j + 1] +
-           2 * figure[j - 1] + 4 * figure[j] + 2 * figure[j + 1] +
-           figure[size + j - 1] + 2 * figure[size + j] + figure[size + j + 1]) /
-          16;
-
-      result[(size - 1) * size + j] =
-          (figure[(size - 2) * size + j - 1] + 2 * figure[(size - 2) * size + j] +
-           figure[(size - 2) * size + j + 1] + 2 * figure[(size - 1) * size + j - 1] +
-           4 * figure[(size - 1) * size + j] + 2 * figure[(size - 1) * size + j + 1] +
-           figure[(size - 1) * size + j - 1] + 2 * figure[(size - 1) * size + j] +
-           figure[(size - 1) * size + j + 1]) /
-          16;
-    }
-
     // 处理四个角点
     // 左上角
-    result[0] = (4 * figure[0] + 2 * figure[1] + 2 * figure[size] +
-                    figure[size + 1]) /
+    result[0] = (4 * figure[outsize + 1] + 2 * figure[outsize + 2] + 2 * figure[2 * outsize + 1] +
+                    figure[2 * outsize + 2]) /
                    9; 
 
     // 右上角
-    result[size - 1] = (4 * figure[size - 1] + 2 * figure[size - 2] +
-                           2 * figure[2 * size - 1] + figure[2 * size - 2]) /
+    result[size - 1] = (4 * figure[2 * outsize - 2] + 2 * figure[2 * outsize - 3] +
+                           2 * figure[3 * outsize - 2] + figure[3 * outsize - 3]) /
                           9;
 
     // 左下角
-    result[(size - 1) * size] = (4 * figure[(size - 1) * size] + 2 * figure[(size - 1) * size + 1] +
-                           2 * figure[(size - 2) * size] + figure[(size - 2) * size + 1]) /
+    result[(size - 1) * size] = (4 * figure[(outsize - 2) * outsize + 1] + 2 * figure[(outsize - 2) * outsize + 2] +
+                           2 * figure[(outsize - 3) * outsize + 1] + figure[(outsize - 3) * outsize + 2]) /
                           9;
 
     // 右下角
-    result[size * size - 1] =
-        (4 * figure[size * size - 1] + 2 * figure[size * size - 2] +
-         2 * figure[(size - 2) * size + size - 1] + figure[(size - 2) * size + size - 2]) /
-        9;
+    result[size * size - 1] =(4 * figure[(outsize - 2) * outsize + outsize - 2] + 2 * figure[(outsize - 2) * outsize + outsize - 3] +
+                            2 * figure[(outsize - 3) * outsize + outsize - 2] + figure[(outsize - 3) * outsize + outsize - 3]) /
+                            9;
   }
 
   // Power law transformation
   // FIXME: Feel free to optimize this function
   // Hint: LUT to optimize this function?
   void powerLawTransformation() {
-    constexpr float gamma = 0.5f;
-    
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        result[i * size + j] = LUT[figure[i * size + j]];
+        result[i * size + j] = LUT[figure[(i + 1) * outsize + j + 1]];
       }
     }
   }
