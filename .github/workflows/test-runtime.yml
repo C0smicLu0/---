@@ -27,7 +27,7 @@ jobs:
       # 步骤 3: 编译 C++ 程序
       - name: Compile C++ program
         run: |
-           g++ -O0 -march=native -mavx2 -std=c++20 -o opt .\main.cpp  # 编译 C++ 程序
+           g++ -O0 -march=native -mavx2 -std=c++20 -o opt -fopenmp .\main.cpp  # 编译 C++ 程序
 
       # 步骤 4: 运行程序并计算运行时间
       - name: Measure runtime
