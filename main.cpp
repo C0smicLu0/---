@@ -33,7 +33,7 @@ public:
     //内部赋值
     for (size_t i = 1; i < size + 1; ++i) {
       for (size_t j = 1; j < size + 1; ++j) {
-        figure[i * outsize + j]=static_cast<unsigned char>(distribution(gen));
+        figure[i * outsize + j]=static_cast<uint16_t>(distribution(gen));
       }
     }
 
@@ -109,28 +109,28 @@ public:
         sum = _mm256_srli_epi16(sum, 4);
 
         // 将结果存回 `result` 数组
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&result[(i - 1) * size + j - 1]), sum);
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&result[((i - 1) << 14) + j - 1]), sum);
       }
     }
     // 处理四个角点
     // 左上角
-    result[0] = (4 * figure[outsize + 1] + 2 * figure[outsize + 2] + 2 * figure[2 * outsize + 1] +
-                    figure[2 * outsize + 2]) /
+    result[0] = ((figure[outsize + 1] << 2) + (figure[outsize + 2] << 1) + (figure[(outsize << 1) + 1] << 1) +
+                    figure[(outsize << 1) + 2]) /
                    9; 
 
     // 右上角
-    result[size - 1] = (4 * figure[2 * outsize - 2] + 2 * figure[2 * outsize - 3] +
-                           2 * figure[3 * outsize - 2] + figure[3 * outsize - 3]) /
+    result[size - 1] = ((figure[(outsize << 1) - 2] << 2) + (figure[(outsize << 1) - 3] << 1) +
+                          (figure[3 * outsize - 2] << 1) + figure[3 * outsize - 3]) /
                           9;
 
     // 左下角
-    result[(size - 1) * size] = (4 * figure[(outsize - 2) * outsize + 1] + 2 * figure[(outsize - 2) * outsize + 2] +
-                           2 * figure[(outsize - 3) * outsize + 1] + figure[(outsize - 3) * outsize + 2]) /
+    result[(size - 1) << 14] = ((figure[(outsize - 2) * outsize + 1] << 2) + (figure[(outsize - 2) * outsize + 2] << 1) +
+                           (figure[(outsize - 3) * outsize + 1] << 1) + figure[(outsize - 3) * outsize + 2]) /
                           9;
 
     // 右下角
-    result[size * size - 1] =(4 * figure[(outsize - 2) * outsize + outsize - 2] + 2 * figure[(outsize - 2) * outsize + outsize - 3] +
-                            2 * figure[(outsize - 3) * outsize + outsize - 2] + figure[(outsize - 3) * outsize + outsize - 3]) /
+    result[(size << 14) - 1] =((figure[(outsize - 2) * outsize + outsize - 2] << 2) + (figure[(outsize - 2) * outsize + outsize - 3] << 1) +
+                            (figure[(outsize - 3) * outsize + outsize - 2] << 1) + figure[(outsize - 3) * outsize + outsize - 3]) /
                             9;
   }
 
@@ -140,7 +140,7 @@ public:
   void powerLawTransformation() {
     for (size_t i = 0; i < size; ++i) {
       for (size_t j = 0; j < size; ++j) {
-        result[i * size + j] = LUT[figure[(i + 1) * outsize + j + 1]];
+        result[(i << 14) + j] = LUT[figure[(i + 1) * outsize + j + 1]];
       }
     }
   }
